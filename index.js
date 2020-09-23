@@ -51,10 +51,12 @@ client.on('message', async message => {
         }
 
         const voiceChannel = message.member.voice.channel;
+        const reset = voiceChannel.userLimit;
+
         const channelMemberCount = voiceChannel.members.filter(r => !r.user.bot).size;
         const minimumVotes = Math.ceil(channelMemberCount * 0.8);
 
-        if (channelMemberCount <= 4) {
+        if (channelMemberCount < 3) {
             const rejectMessage = await message.channel.send('I\'m sorry but you can\'t start a vote kick under 5 people.');
             setTimeout(() => rejectMessage, deleteAfter * 1000);
             return;
@@ -68,7 +70,7 @@ client.on('message', async message => {
             voteMsg.react('👎')
         ]);
 
-        await message.guild.channels.cache.get('758423762751455246').send(
+        message.guild.channels.cache.get('758423762751455246').send(
             new MessageEmbed()
                 .setTitle("Vote kick started!")
                 .addField("Started by:", `${message.author}`)
@@ -78,14 +80,16 @@ client.on('message', async message => {
                 .setTimestamp()
                 .setColor("BLUE")
         )
-
+        
+        voiceChannel.setUserLimit(1)
 
         voteMsg.awaitReactions((reaction, user) => voiceChannel.members.has(user.id) && (reaction.emoji.name === '👍' || reaction.emoji.name === '👎'),
-            { max: channelMemberCount, time: 20 * 1000 }).then(async collected => {
+            { max: channelMemberCount, time: 30 * 1000 }).then(async collected => {
 
             if (collected.size === 0) {
                 const finalMessage = message.channel.send(`No one voted!`);
                 setTimeout(() => finalMessage.delete(), deleteAfter * 1000);
+                voiceChannel.setUserLimit(reset)
                 return;
             }
 
@@ -98,8 +102,9 @@ client.on('message', async message => {
 
                 await target.roles.add(lockoutRole);
                 await target.voice.kick("Vote kicked");
+                voiceChannel.setUserLimit(reset)
 
-                await message.guild.channels.cache.get('758423762751455246').send(
+                message.guild.channels.cache.get('758423762751455246').send(
                     new MessageEmbed()
                         .setTitle("Vote kick ended!")
                         .addField("Started by:", `${message.author}`)
@@ -114,8 +119,8 @@ client.on('message', async message => {
 
             } else {
                 confirmMessage = await message.channel.send(`Vote failed, ${target} was not kicked. ${yesVotes} voted but a minimum of ${minimumVotes} were required`);
-
-                await message.guild.channels.cache.get('758423762751455246').send(
+                voiceChannel.setUserLimit(reset)
+                message.guild.channels.cache.get('758423762751455246').send(
                     new MessageEmbed()
                         .setTitle("Vote kick ended!")
                         .addField("Started by:", `${message.author}`)
@@ -130,10 +135,11 @@ client.on('message', async message => {
 
             voteMsg.delete();
 
-            if (confirmMessage)
+            if (confirmMessage) 
                 setTimeout(() => confirmMessage.delete(), deleteAfter * 1000)
 
         }).catch((e) => {
+            voiceChannel.setUserLimit(reset)
             message.channel.send(`Oops, an error occured! Please report this to a moderator.`);
             console.log(e);
         });
