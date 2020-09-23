@@ -10,6 +10,8 @@ client.on("ready", () => {
     client.user.setActivity(`!help`, { type: `PLAYING` });
 });
 
+const deleteAfter = 20;
+
 client.on('message', async message => {
     if (message.channel.type === 'dm') return;
     if (message.author.bot) return;
@@ -26,52 +28,111 @@ client.on('message', async message => {
     if (message.content.startsWith(`${prefix}votekick`)) {
         const target = message.mentions.members.first();
 
-        if (!message.member.voice.channel)
-            return message.channel.send('You\'re not in a voice channel!');
+        // Delete user message
+        await message.delete();
 
-        if(target == null)
-            return message.channel.send('I can\'t find the person you want to kick, please mention someone in your messsage');
+        if (!message.member.voice.channel) {
+            const rejectMessage = await message.channel.send('You\'re not in a voice channel!');
+            setTimeout(() => rejectMessage, deleteAfter * 1000);
+            return;
+        }
 
-        if(message.member.voice.channelID !== target.voice.channelID)
-            return message.channel.send('I\'m sorry but you can\'t kick someone if you\'re not in the same voice channel.');
+        if (target == null) {
+            const rejectMessage = await message.channel.send('I can\'t find the person you want to kick, please mention someone in your messsage');
+            setTimeout(() => rejectMessage, deleteAfter * 1000);
+            return;
+
+        }
+
+        if (message.member.voice.channelID !== target.voice.channelID) {
+            const rejectMessage = await message.channel.send('I\'m sorry but you can\'t kick someone if you\'re not in the same voice channel.');
+            setTimeout(() => rejectMessage, deleteAfter * 1000);
+            return;
+        }
 
         const voiceChannel = message.member.voice.channel;
         const channelMemberCount = voiceChannel.members.filter(r => !r.user.bot).size;
         const minimumVotes = Math.ceil(channelMemberCount * 0.8);
 
+        if (channelMemberCount <= 4) {
+            const rejectMessage = await message.channel.send('I\'m sorry but you can\'t start a vote kick under 5 people.');
+            setTimeout(() => rejectMessage, deleteAfter * 1000);
+            return;
+        }
 
-        const message = await message.channel.send(`A vote kick for ${target} has been created! **30 seconds votetime!**\nAt least ${minimumVotes} 👍 are required to pass the vote.\nReply to this message with 👍/👎\n*It doesn't count your vote if you're not in the actual voice channel!*`);
+        const voteMsg = await message.channel.send(`A vote kick for ${target} was started by ${message.member}! **30 seconds votetime!**\nAt least ${minimumVotes} 👍 are required to pass the vote.\nReply to this message with 👍/👎\n*It doesn't count your vote if you're not in the actual voice channel!*`);
         const lockoutRole = message.guild.roles.cache.get('758385527811604531');
 
-        message.guild.channels.cache.get('758423762751455246').send(
-            new MessageEmbed()
-                .setTitle("Vote kick started!")
-                .addField("Started by", ``)
-        )
-
         await Promise.all([
-            message.react('👍'),
-            message.react('👎')
+            voteMsg.react('👍'),
+            voteMsg.react('👎')
         ]);
 
+        await message.guild.channels.cache.get('758423762751455246').send(
+            new MessageEmbed()
+                .setTitle("Vote kick started!")
+                .addField("Started by:", `${message.author}`)
+                .addField("Target:", `${target} \n ID: ${target.id}`)
+                .addField("Voicechannel:", `${voiceChannel}`)
+                .setFooter(`Vote started at: `)
+                .setTimestamp()
+                .setColor("BLUE")
+        )
 
-        message.awaitReactions((reaction, user) => voiceChannel.members.has(user.id) && (reaction.emoji.name === '👍' || reaction.emoji.name === '👎'),
-            { max: channelMemberCount, time: 30000 }).then(collected => {
 
-            const yesVotes = collected.get('👍').count - 1;
+        voteMsg.awaitReactions((reaction, user) => voiceChannel.members.has(user.id) && (reaction.emoji.name === '👍' || reaction.emoji.name === '👎'),
+            { max: channelMemberCount, time: 20 * 1000 }).then(async collected => {
+
+            if (collected.size === 0) {
+                const finalMessage = message.channel.send(`No one voted!`);
+                setTimeout(() => finalMessage.delete(), deleteAfter * 1000);
+                return;
+            }
+
+            let confirmMessage = null;
+            const yesVotes = collected.get('👍') ? collected.get('👍').count - 1 : 0;
 
             if (yesVotes >= minimumVotes) {
-                message.channel.send(`Vote successful! ${yesVotes} people voted to kick out ${target}, they won't be able to join for one hour.`);
+                confirmMessage = await message.channel.send(`Vote successful! ${yesVotes} people voted to kick out ${target}, they won't be able to join for one hour.`)
 
-                target.roles.add(lockoutRole);
-                target.voice.kick("Vote kicked");
+
+                await target.roles.add(lockoutRole);
+                await target.voice.kick("Vote kicked");
+
+                await message.guild.channels.cache.get('758423762751455246').send(
+                    new MessageEmbed()
+                        .setTitle("Vote kick ended!")
+                        .addField("Started by:", `${message.author}`)
+                        .addField("Target:", `${target} \n ID: ${target.id}`)
+                        .addField("Voicechannel:", `${voiceChannel}`)
+                        .addField("Result:", `${yesVotes}/${minimumVotes} people voted, ${target} was kicked`)
+                        .setFooter(`Vote ended at: `)
+                        .setTimestamp()
+                        .setColor("RED")
+                )
 
 
             } else {
-                message.channel.send(`Vote failed, ${target} was not kicked. ${yesVotes} voted but a minimum of ${minimumVotes} were required`)
+                confirmMessage = await message.channel.send(`Vote failed, ${target} was not kicked. ${yesVotes} voted but a minimum of ${minimumVotes} were required`);
+
+                await message.guild.channels.cache.get('758423762751455246').send(
+                    new MessageEmbed()
+                        .setTitle("Vote kick ended!")
+                        .addField("Started by:", `${message.author}`)
+                        .addField("Target:", `${target} \n ID: ${target.id}`)
+                        .addField("Voicechannel:", `${voiceChannel}`)
+                        .addField("Result:", `${yesVotes}/${minimumVotes} people voted, ${target} was not kicked`)
+                        .setFooter(`Vote ended at: `)
+                        .setTimestamp()
+                        .setColor("GREEN")
+                )
             }
 
-            message.delete();
+            voteMsg.delete();
+
+            if (confirmMessage)
+                setTimeout(() => confirmMessage.delete(), deleteAfter * 1000)
+
         }).catch((e) => {
             message.channel.send(`Oops, an error occured! Please report this to a moderator.`);
             console.log(e);
