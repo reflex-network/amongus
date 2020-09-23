@@ -1,6 +1,7 @@
-const { Discord, MessageEmbed } = require('discord.js');
+const Discord= require('discord.js');
 const client = new Discord.Client();
-const { token, prefix } = require('./config.json')
+const { token, prefix } = require('./config.json');
+const { MessageEmbed } = require('discord.js');
 
 client.on("ready", () => {
     console.log(`${client.user.tag} is online!`)
@@ -34,21 +35,17 @@ client.on('message', async message => {
 
         let vc = message.member.voice.channel;
         let lockout = message.guild.roles.cache.get('758385527811604531');
-        // let size = Math.ceil(vc.members.size * 0.8);
+        let size = Math.ceil(vc.members.size * 0.8);
 
         msg.awaitReactions((reaction, user) => vc.members.has(user.id) && (reaction.emoji.name == '👍' || reaction.emoji.name == '👎'),
         { max: 10, time: 30000 }).then(collected => {
-            let a = collected.filter(r => r.emoji.name == '👍' && !user.bot);
-            let b = collected.filter(r => r.emoji.name == '👎' && !user.bot);
-                if (a.size > b.size) {
+            let a = collected.get('👍').count - 1;
+                if (a >= size) {
                         message.channel.send(`Vote successful! ${target} was kicked!`);
                         target.roles.add(lockout);
                         target.voice.kick("Vote kicked");
-                } else if(a.size < b.size) {
-                    message.channel.send('Vote Failed, less than 80% yes')
-                }
-                else {
-                        message.channel.send('Votes were equal');
+                } else {
+                    message.channel.send(`Vote failed, ${a} voted yes but a minimum of ${size} were required`)
                 }
             }).catch((e) => {
                 message.channel.send(`there was an error! ${e}`);
