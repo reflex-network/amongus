@@ -1,4 +1,4 @@
-const Discord= require('discord.js');
+const Discord = require('discord.js');
 const client = new Discord.Client();
 const { token, prefix } = require('./config.json');
 const { MessageEmbed } = require('discord.js');
@@ -6,50 +6,75 @@ const { MessageEmbed } = require('discord.js');
 client.on("ready", () => {
     console.log(`${client.user.tag} is online!`)
     client.generateInvite('ADMINISTRATOR')
-  .then(link => console.log(`Generated bot invite link: ${link}`)).catch(console.error);
-  client.user.setActivity(`!help`, {type: `PLAYING`});
+        .then(link => console.log(`Generated bot invite link: ${link}`)).catch(console.error);
+    client.user.setActivity(`!help`, { type: `PLAYING` });
 });
 
-client.on('message', async message => { 
+client.on('message', async message => {
     if (message.channel.type === 'dm') return;
     if (message.author.bot) return;
 
-    if(message.content === `${prefix}help`) {
-        let embed = new MessageEmbed()
-        .setTitle('Among Us Help')
-        .addField('Commands', `!votekick - Make a poll for whether or not to kick user`)
-        .setColor('RANDOM')
+    if (message.content === `${prefix}help`) {
+        const embed = new MessageEmbed()
+            .setTitle('Among Us Help')
+            .addField('Commands', `!votekick @user - Make a poll for whether or not to kick user`)
+            .setColor('RANDOM')
 
         message.channel.send(embed);
     }
 
+    if (message.content.startsWith(`${prefix}votekick`)) {
+        const target = message.mentions.members.first();
+
+        if (!message.member.voice.channel)
+            return message.channel.send('You\'re not in a voice channel!');
+
+        if(target == null)
+            return message.channel.send('I can\'t find the person you want to kick, please mention someone in your messsage');
+
+        if(message.member.voice.channelID !== target.voice.channelID)
+            return message.channel.send('I\'m sorry but you can\'t kick someone if you\'re not in the same voice channel.');
+
+        const voiceChannel = message.member.voice.channel;
+        const channelMemberCount = voiceChannel.members.filter(r => !r.user.bot).size;
+        const minimumVotes = Math.ceil(channelMemberCount * 0.8);
 
 
-    let target = message.mentions.members.first();
-    if(message.content === `${prefix}votekick ${target}`) {
-        if(!message.member.voice.channel) return message.channel.send('You are not in a voicechannel! Join one to use this command!');
-       let msg = await message.channel.send(`A votekick for ${target} has been created! **30 seconds votetime!** \n vote 👍 for yes, vote 👎 for no`);
+        const message = await message.channel.send(`A vote kick for ${target} has been created! **30 seconds votetime!**\nAt least ${minimumVotes} 👍 are required to pass the vote.\nReply to this message with 👍/👎\n*It doesn't count your vote if you're not in the actual voice channel!*`);
+        const lockoutRole = message.guild.roles.cache.get('758385527811604531');
 
-        msg.react('👍')
-        msg.react('👎');
+        message.guild.channels.cache.get('758423762751455246').send(
+            new MessageEmbed()
+                .setTitle("Vote kick started!")
+                .addField("Started by", ``)
+        )
 
-        let vc = message.member.voice.channel;
-        let lockout = message.guild.roles.cache.get('758385527811604531');
-        let size = Math.ceil(vc.members.size * 0.8);
+        await Promise.all([
+            message.react('👍'),
+            message.react('👎')
+        ]);
 
-        msg.awaitReactions((reaction, user) => vc.members.has(user.id) && (reaction.emoji.name == '👍' || reaction.emoji.name == '👎'),
-        { max: 10, time: 30000 }).then(collected => {
-            let a = collected.get('👍').count - 1;
-                if (a >= size) {
-                        message.channel.send(`Vote successful! ${target} was kicked!`);
-                        target.roles.add(lockout);
-                        target.voice.kick("Vote kicked");
-                } else {
-                    message.channel.send(`Vote failed, ${a} voted yes but a minimum of ${size} were required`)
-                }
-            }).catch((e) => {
-                message.channel.send(`there was an error! ${e}`);
-                console.log(e);
+
+        message.awaitReactions((reaction, user) => voiceChannel.members.has(user.id) && (reaction.emoji.name === '👍' || reaction.emoji.name === '👎'),
+            { max: channelMemberCount, time: 30000 }).then(collected => {
+
+            const yesVotes = collected.get('👍').count - 1;
+
+            if (yesVotes >= minimumVotes) {
+                message.channel.send(`Vote successful! ${yesVotes} people voted to kick out ${target}, they won't be able to join for one hour.`);
+
+                target.roles.add(lockoutRole);
+                target.voice.kick("Vote kicked");
+
+
+            } else {
+                message.channel.send(`Vote failed, ${target} was not kicked. ${yesVotes} voted but a minimum of ${minimumVotes} were required`)
+            }
+
+            message.delete();
+        }).catch((e) => {
+            message.channel.send(`Oops, an error occured! Please report this to a moderator.`);
+            console.log(e);
         });
     }
 });
