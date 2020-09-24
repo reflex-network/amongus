@@ -123,7 +123,7 @@ client.on('message', async message => {
                 .setTitle("Vote kick started!")
                 .addField("Started by:", `${message.author}`)
                 .addField("Target:", `${target} \n ID: ${target.id}`)
-                .addField("Voicechannel:", `${voiceChannel}`)
+                .addField("Channel:", `${voiceChannel}`)
                 .setFooter(`Vote started at: `)
                 .setTimestamp()
                 .setColor("BLUE")
@@ -134,7 +134,17 @@ client.on('message', async message => {
             { max: channelMemberCount, time: 30 * 1000 }).then(async collected => {
 
             if (channelMemberCount < minimumToStart)
-                return;
+                return message.guild.channels.cache.get(logChannelId).send(
+                    new MessageEmbed()
+                        .setTitle("Vote kick cancelled!")
+                        .addField("Started by:", `${message.author}`)
+                        .addField("Target:", `${target} \n ID: ${target.id}`)
+                        .addField("Channel:", `${voiceChannel}`)
+                        .addField("Result:", `Too many people left, vote cancelled.`)
+                        .setFooter(`Vote ended at: `)
+                        .setTimestamp()
+                        .setColor("RED")
+                );
 
             let yesVotes = 0;
 
@@ -158,7 +168,7 @@ client.on('message', async message => {
                         .setTitle("Vote kick ended!")
                         .addField("Started by:", `${message.author}`)
                         .addField("Target:", `${target} \n ID: ${target.id}`)
-                        .addField("Voicechannel:", `${voiceChannel}`)
+                        .addField("Channel:", `${voiceChannel}`)
                         .addField("Result:", `${yesVotes}/${minimumVotes} people voted, ${target} was kicked`)
                         .setFooter(`Vote ended at: `)
                         .setTimestamp()
@@ -172,7 +182,7 @@ client.on('message', async message => {
                         .setTitle("Vote kick ended!")
                         .addField("Started by:", `${message.author}`)
                         .addField("Target:", `${target} \n ID: ${target.id}`)
-                        .addField("Voicechannel:", `${voiceChannel}`)
+                        .addField("Channel:", `${voiceChannel}`)
                         .addField("Result:", `${yesVotes}/${minimumVotes} people voted, ${target} was not kicked`)
                         .setFooter(`Vote ended at: `)
                         .setTimestamp()
