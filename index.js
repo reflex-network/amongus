@@ -50,7 +50,7 @@ client.on('message', async message => {
 
         const voiceChannel = message.member.voice.channel;
         let channelMemberCount = voiceChannel.members.filter(r => !r.user.bot).size;
-        let minimumVotes = Math.ceil(channelMemberCount * percentageAgreement);
+        let minimumVotes = Math.round(channelMemberCount * percentageAgreement);
 
         if (channelMemberCount < minimumToStart)
             return message.channel.send(`I'm sorry but you can't start a vote kick under ${minimumToStart} people. Please contact support for further assistance`)
@@ -215,7 +215,7 @@ client.on('message', async message => {
 client.on("voiceStateUpdate", (oldState, newState) => {
     if (oldState.channelID !== newState.channelID && oldState.channelID) {
         const newChannelMemberCount = oldState.channel.members.filter(r => !r.user.bot).size;
-        const newMinimumVotes = Math.ceil(newChannelMemberCount * percentageAgreement)
+        const newMinimumVotes = Math.round(newChannelMemberCount * percentageAgreement)
         voiceEmitter.emit(oldState.channelID, newChannelMemberCount, newMinimumVotes);
     }
 });
