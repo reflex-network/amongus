@@ -212,11 +212,20 @@ client.on('message', async message => {
     }
 });
 
-client.on("voiceStateUpdate", (oldState, newState) => {
+client.on("voiceStateUpdate", async (oldState, newState) => {
     if (oldState.channelID !== newState.channelID && oldState.channelID) {
         const newChannelMemberCount = oldState.channel.members.filter(r => !r.user.bot).size;
         const newMinimumVotes = Math.round(newChannelMemberCount * percentageAgreement)
         voiceEmitter.emit(oldState.channelID, newChannelMemberCount, newMinimumVotes);
+    }
+
+
+    if(newState.channel && newState.channel.userLimit !== 0 && newState.member.user.bot) {
+        await newState.channel.setUserLimit(newState.channel.userLimit + 1)
+    }
+
+    if(oldState.channelID !== newState.channelID && oldState.channel.userLimit !== 0 && oldState.member.user.bot) {
+        await oldState.channel.setUserLimit(oldState.channel.userLimit - 1)
     }
 });
 
